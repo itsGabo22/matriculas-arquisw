@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Consola de Matrículas</title>
+<style>
+/* Layout: consola de tres columnas (configuración | aula | eventos), pensada para proyector.
+   Concepto visual: tablero de control de planta física, aula = cuadrícula de sillas. */
+:root {
+  --bg: #0c1118;
+  --surface: #141b25;
+  --surface-2: #1a2330;
+  --line: #2a3546;
+  --fg: #e8edf5;
+  --muted: #8d9bb0;
+  --accent: #5b9dff;      /* síncrono / acción */
+  --infra: #f2b93b;       /* mensajería y datos, igual que en el C4 */
+  --ok: #3ecf8e;
+  --bad: #ff6b6b;
+  --seat-free: #1f2b3b;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-body: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 15px/1.45 var(--font-body);
+  padding-block: 20px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 20px; }
+h1, h2 { font-family: var(--font-display); margin: 0; text-wrap: balance; }
+h1 { font-size: 1.5rem; letter-spacing: -0.01em; }
+h2 { font-size: .72rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); font-weight: 600; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }
+header p { margin: 2px 0 0; color: var(--muted); font-size: .9rem; }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: .82rem; font-family: var(--font-mono); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.pill.up .dot { background: var(--ok); box-shadow: 0 0 0 3px rgba(62,207,142,.18); }
+.pill.down .dot { background: var(--bad); }
+
+main { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr) minmax(0, 380px); gap: 20px; align-items: start; }
+@media (max-width: 1080px) { main { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 14px; }
+.stack { display: grid; gap: 20px; min-width: 0; }
+
+label { display: grid; gap: 4px; font-size: .8rem; color: var(--muted); }
+input, select { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; width: 100%; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.btn { border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 9px 14px; cursor: pointer; font-weight: 600; }
+.btn:hover { border-color: var(--accent); }
+.btn:disabled { opacity: .5; cursor: progress; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #07101e; }
+.btn.warn { border-color: var(--infra); color: var(--infra); background: transparent; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: .76rem var(--font-mono); padding: 4px 8px; border-radius: 6px; border: 1px dashed var(--line); background: transparent; color: var(--muted); cursor: pointer; }
+.chip:hover { color: var(--fg); border-color: var(--accent); }
+.hint { margin: 0; font-size: .78rem; color: var(--muted); }
+
+/* Aula */
+.room-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
+.room-title { font: 600 1.15rem var(--font-display); }
+.counter { font: 700 3.2rem/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.counter small { font-size: 1rem; color: var(--muted); font-weight: 500; }
+.seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 8px; }
+.seat { min-height: 52px; border-radius: 6px; background: var(--seat-free); border: 1px solid var(--line); display: grid; place-items: center; font: .72rem var(--font-mono); color: var(--muted); padding: 4px; text-align: center; }
+.seat.taken { background: rgba(91,157,255,.14); border-color: var(--accent); color: var(--fg); }
+.seat.taken b { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.seat.taken i { font-style: normal; color: var(--infra); font-variant-numeric: tabular-nums; }
+.full { border: 1px solid var(--bad); color: var(--bad); border-radius: 6px; padding: 8px 12px; font-weight: 600; }
+.empty { color: var(--muted); padding: 24px 0; text-align: center; }
+
+/* Resultados */
+.log { display: grid; gap: 6px; max-height: 340px; overflow: auto; }
+.res { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 6px; background: var(--bg); border-left: 3px solid var(--muted); font-size: .84rem; }
+.res.ok { border-left-color: var(--ok); }
+.res.no { border-left-color: var(--bad); }
+.res code { font: .75rem var(--font-mono); color: var(--muted); }
+.res .code { font: 700 .95rem var(--font-mono); }
+.res.ok .code { color: var(--ok); }
+.res.no .code { color: var(--bad); }
+.res .msg { min-width: 0; overflow-wrap: anywhere; }
+.tally { display: flex; flex-wrap: wrap; gap: 8px 18px; font: .85rem var(--font-mono); }
+.tally b { font-size: 1.1rem; }
+
+/* Colas */
+.queue { display: grid; gap: 8px; padding: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+.queue h3 { margin: 0; font: 600 .86rem var(--font-mono); color: var(--infra); overflow-wrap: anywhere; }
+.queue .who { color: var(--muted); font-size: .8rem; margin-top: -4px; }
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; text-align: center; }
+.metrics div { background: var(--surface); border-radius: 6px; padding: 6px 2px; }
+.metrics b { display: block; font: 700 1.25rem var(--font-display); font-variant-numeric: tabular-nums; }
+.metrics span { font-size: .66rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.flow { font: .74rem/1.7 var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
+.flow em { font-style: normal; color: var(--accent); }
+.flow strong { font-weight: 400; color: var(--infra); }
+@media (prefers-reduced-motion: no-preference) { .seat, .res { transition: background .25s, border-color .25s; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Consola de Matrículas</h1>
+      <p>Walking skeleton en vivo: cada botón llama al sistema real a través del api-gateway.</p>
+    </div>
+    <div class="pills" aria-label="Estado de servicios">
+      <span class="pill" id="pill-gw"><span class="dot"></span>api-gateway</span>
+      <span class="pill" id="pill-quota"><span class="dot"></span>quota-service</span>
+      <span class="pill" id="pill-mq"><span class="dot"></span>rabbitmq</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Columna 1: configuración y disparo -->
+    <div class="stack">
+      <section class="panel" aria-labelledby="h-setup">
+        <h2 id="h-setup">1 · Planta física y oferta</h2>
+        <div class="row">
+          <label>Aula<input id="room-id" value="AULA-301"></label>
+          <label>Aforo<input id="room-cap" type="number" min="1" value="2"></label>
+        </div>
+        <label>Grupo
+          <select id="section-id">
+            <option value="ARQSW-01">ARQSW-01 · Arquitectura de Software</option>
+            <option value="LABRED-01">LABRED-01 · Laboratorio de Redes</option>
+          </select>
+        </label>
+        <div class="row">
+          <label>Cupo ofertado<input id="offered" type="number" min="1" value="30"></label>
+          <label>Sobrecupo<input id="over" type="number" min="0" value="2"></label>
+        </div>
+        <button class="btn primary" id="btn-setup">Crear aula y abrir grupo</button>
+        <p class="hint">El cupo efectivo es el menor entre oferta + sobrecupo y el aforo del aula.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-fire">
+        <h2 id="h-fire">2 · Matrículas</h2>
+        <label>Estudiante<input id="student" value="est-001"></label>
+        <div class="actions">
+          <button class="btn primary" id="btn-one">Matricular</button>
+        </div>
+        <div class="row">
+          <label>Concurrentes<input id="burst-n" type="number" min="1" max="200" value="3"></label>
+          <button class="btn warn" id="btn-burst" style="align-self:end">Disparar a la vez</button>
+        </div>
+        <div>
+          <p class="hint" style="margin-bottom:6px">Casos de la cadena de reglas:</p>
+          <div class="chips" id="presets"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Columna 2: aula -->
+    <div class="stack">
+      <section class="panel" aria-labelledby="h-room">
+        <h2 id="h-room">Aula en Redis</h2>
+        <div id="room-view"><p class="empty">Crea un aula y abre un grupo para ver las sillas.</p></div>
+      </section>
+      <section class="panel" aria-labelledby="h-res">
+        <h2 id="h-res">Respuestas de quota-service</h2>
+        <div class="tally" id="tally"></div>
+        <div class="log" id="log" aria-live="polite"><p class="empty">Aún no hay matrículas.</p></div>
+      </section>
+    </div>
+
+    <!-- Columna 3: eventos -->
+    <div class="stack">
+      <section class="panel" aria-labelledby="h-ev">
+        <h2 id="h-ev">Evento SeatReserved</h2>
+        <p class="flow"><em>quota-service</em> publica <strong>SeatReserved</strong> en el exchange <strong>enrollment.events</strong>. Cada cola es de un consumidor distinto.</p>
+        <div id="queues"><p class="empty">Esperando RabbitMQ…</p></div>
+        <p class="hint">Las cifras vienen de la API de administración de RabbitMQ, que las actualiza cada ~5 s. Los logs detallados siguen en la terminal.</p>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var expiries = {};            // studentId -> epoch ms de expiración de la reserva
+  var results = [];             // últimas respuestas
+  var counts = { ok: 0, no: 0 };
+
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function api(path, opts) {
+    var t0 = performance.now();
+    return fetch(path, opts).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (body) { return { status: r.status, body: body, ms: Math.round(performance.now() - t0) }; });
+    });
+  }
+  function post(path, data) { return api(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) }); }
+
+  /* ---------- Estado de servicios ---------- */
+  function pill(id, up) { var p = $(id); p.className = 'pill ' + (up ? 'up' : 'down'); }
+  function pollHealth() {
+    api('/gateway/health').then(function (r) { pill('pill-gw', r.status === 200); }).catch(function () { pill('pill-gw', false); });
+    api('/health').then(function (r) { pill('pill-quota', r.status === 200); }).catch(function () { pill('pill-quota', false); });
+  }
+
+  /* ---------- Configuración ---------- */
+  $('btn-setup').onclick = function () {
+    var btn = $('btn-setup'); btn.disabled = true;
+    post('/admin/rooms', { roomId: $('room-id').value.trim(), capacity: parseInt($('room-cap').value, 10) })
+      .then(function (r) {
+        if (r.status >= 400) throw new Error(r.body.error || 'No se pudo crear el aula');
+        return post('/admin/sections', { sectionId: $('section-id').value, roomId: $('room-id').value.trim(), offeredSeats: parseInt($('offered').value, 10), authorizedOverbooking: parseInt($('over').value, 10) || 0 });
+      })
+      .then(function (r) {
+        if (r.status >= 400) throw new Error(r.body.error || 'No se pudo abrir el grupo');
+        expiries = {}; results = []; counts = { ok: 0, no: 0 }; renderLog();
+        return refreshRoom();
+      })
+      .catch(function (e) { $('room-view').replaceChildren(el('p', 'full', e.message)); })
+      .then(function () { btn.disabled = false; });
+  };
+
+  /* ---------- Aula ---------- */
+  function fmt(ms) { var s = Math.max(0, Math.round(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+  var lastSection = null;
+  function refreshRoom() {
+    return api('/sections/' + encodeURIComponent($('section-id').value)).then(function (r) {
+      if (r.status !== 200) { lastSection = null; return; }
+      lastSection = r.body; renderRoom();
+    }).catch(function () {});
+  }
+  function renderRoom() {
+    var s = lastSection; if (!s) return;
+    var view = el('div'); view.style.display = 'grid'; view.style.gap = '14px';
+    var head = el('div', 'room-head');
+    var left = el('div'); left.appendChild(el('div', 'room-title', s.roomId + ' · ' + s.sectionId));
+    left.appendChild(el('div', 'hint', 'Aforo físico ' + s.roomCapacity + ' · cupo efectivo ' + s.totalSeats));
+    var cnt = el('div', 'counter', String(s.availableSeats)); cnt.appendChild(el('small', null, ' / ' + s.totalSeats + ' libres'));
+    head.append(left, cnt); view.appendChild(head);
+    if (s.availableSeats === 0) view.appendChild(el('div', 'full', 'Aforo físico agotado: las nuevas solicitudes se rechazan con 409.'));
+    var grid = el('div', 'seats'); var shown = Math.min(s.totalSeats, 60);
+    for (var i = 0; i < shown; i++) {
+      var id = s.activeReservations[i]; var seat = el('div', 'seat' + (id ? ' taken' : ''));
+      if (id) { seat.appendChild(el('b', null, id)); var exp = expiries[id]; seat.appendChild(el('i', null, exp ? 'TTL ' + fmt(exp - Date.now()) : 'TTL activo')); }
+      else seat.textContent = 'libre';
+      grid.appendChild(seat);
+    }
+    view.appendChild(grid);
+    if (s.totalSeats > shown) view.appendChild(el('p', 'hint', 'Se muestran ' + shown + ' de ' + s.totalSeats + ' sillas.'));
+    $('room-view').replaceChildren(view);
+  }
+
+  /* ---------- Matrículas ---------- */
+  function renderLog() {
+    var t = $('tally'); t.replaceChildren();
+    var a = el('span'); a.append('Reservadas ', Object.assign(el('b', null, String(counts.ok)), { style: 'color:var(--ok)' }));
+    var b = el('span'); b.append('Rechazadas ', Object.assign(el('b', null, String(counts.no)), { style: 'color:var(--bad)' }));
+    t.append(a, b);
+    var log = $('log'); log.replaceChildren();
+    if (!results.length) { log.appendChild(el('p', 'empty', 'Aún no hay matrículas.')); return; }
+    results.slice(0, 40).forEach(function (r) {
+      var ok = r.status === 201; var row = el('div', 'res ' + (ok ? 'ok' : 'no'));
+      var detail = ok ? 'RESERVED · quedan ' + r.body.remainingSeats : (r.body.failedRule || r.body.reason || r.body.error || 'error') + (r.body.detail ? ' · ' + r.body.detail : '');
+      var m = el('div', 'msg'); m.append(el('strong', null, r.student), el('br'), detail);
+      row.append(el('span', 'code', String(r.status)), m, el('code', null, r.ms + ' ms'));
+      log.appendChild(row);
+    });
+  }
+  function enroll(student) {
+    return post('/enroll', { studentId: student, sectionId: $('section-id').value }).then(function (r) {
+      r.student = student;
+      if (r.status === 201) { counts.ok++; expiries[student] = new Date(r.body.expiresAt).getTime(); } else counts.no++;
+      results.unshift(r); return r;
+    }).catch(function () { counts.no++; results.unshift({ student: student, status: 0, body: { error: 'sin conexión con el gateway' }, ms: 0 }); });
+  }
+  function done() { renderLog(); refreshRoom(); }
+  $('btn-one').onclick = function () { enroll($('student').value.trim()).then(done); };
+  $('btn-burst').onclick = function () {
+    var n = Math.min(200, Math.max(1, parseInt($('burst-n').value, 10) || 1)); var btn = $('btn-burst'); btn.disabled = true;
+    var jobs = []; for (var i = 1; i <= n; i++) jobs.push(enroll('est-' + String(i).padStart(3, '0')));
+    Promise.all(jobs).then(function () { done(); btn.disabled = false; });
+  };
+  [['est-sin-prerreq', 'sin prerrequisito'], ['est-prueba-acad', 'prueba académica'], ['est-choque', 'choque de horario']].forEach(function (p) {
+    var c = el('button', 'chip', p[0]); c.title = p[1]; c.type = 'button';
+    c.onclick = function () { $('student').value = p[0]; enroll(p[0]).then(done); };
+    $('presets').appendChild(c);
+  });
+  $('section-id').onchange = refreshRoom;
+
+  /* ---------- Colas de RabbitMQ ---------- */
+  var QUEUES = [['billing.seat-reserved', 'Consumidor 1 · billing-worker (ERP)'], ['audit.seat-reserved', 'Consumidor 2 · audit-notification-worker']];
+  function pollQueues() {
+    api('/mq/queues').then(function (r) {
+      pill('pill-mq', r.status === 200);
+      if (r.status !== 200 || !Array.isArray(r.body)) return;
+      var box = $('queues'); box.replaceChildren(); box.style.display = 'grid'; box.style.gap = '12px';
+      QUEUES.forEach(function (q) {
+        var d = r.body.filter(function (x) { return x.name === q[0]; })[0]; if (!d) return;
+        var st = d.message_stats || {}; var card = el('div', 'queue');
+        card.append(el('h3', null, q[0]), el('div', 'who', q[1]));
+        var m = el('div', 'metrics');
+        [['consumidores', d.consumers || 0], ['en cola', d.messages_ready || 0], ['publicados', st.publish || 0], ['procesados', st.ack || 0]].forEach(function (x) {
+          var c = el('div'); c.append(el('b', null, String(x[1])), el('span', null, x[0])); m.appendChild(c);
+        });
+        card.appendChild(m); box.appendChild(card);
+      });
+    }).catch(function () { pill('pill-mq', false); });
+  }
+
+  pollHealth(); pollQueues(); renderLog(); refreshRoom();
+  setInterval(pollHealth, 4000); setInterval(pollQueues, 2000); setInterval(refreshRoom, 1500);
+  setInterval(function () { if (lastSection && lastSection.activeReservations.length) renderRoom(); }, 1000);
+})();
+</script>
+</body>
+</html>

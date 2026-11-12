@@ -49,6 +49,12 @@ En otra terminal (Git Bash en Windows, o cualquier bash con `curl`):
 ./demo.sh estres     # ESC-1: 100 solicitudes simultáneas por el último asiento
 ```
 
+### Consola de demo (opcional, apoyo visual)
+
+Con el sistema arriba, abre **http://127.0.0.1:8080/**. Es una página estática servida por el propio `api-gateway` (no agrega ningún contenedor: siguen siendo 7). Permite crear el aula y el grupo, disparar matrículas concurrentes, ver las sillas con su TTL y ver cómo los dos consumidores procesan el evento. `./demo.sh` sigue siendo el plan principal.
+
+Para alimentar el panel de colas, el gateway expone `GET /mq/queues` (solo lectura, solo para esta consola) hacia la API de administración de RabbitMQ. No forma parte del flujo de matrícula.
+
 > En Windows usa `127.0.0.1` en lugar de `localhost` (este último puede resolver a IPv6 y fallar).
 
 ### Resultado esperado de `./demo.sh`
