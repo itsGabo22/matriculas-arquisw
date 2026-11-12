@@ -32,6 +32,14 @@ async function scanKeys(pattern) {
   return found;
 }
 
+// Borra aulas, grupos, contadores y reservas. Solo para reiniciar pruebas de la demo.
+async function resetAll() {
+  const found = [];
+  for (const pattern of ['room:*', 'section:*', 'hold:*']) found.push(...(await scanKeys(pattern)));
+  if (found.length) await redis.del(...found);
+  return found.length;
+}
+
 async function upsertRoom(roomId, capacity) {
   await redis.hset(keys.room(roomId), { roomId, capacity });
 }
@@ -87,5 +95,5 @@ async function releaseSeat(sectionId, studentId, { deleteHold = false } = {}) {
 }
 
 module.exports = {
-  redis, upsertRoom, getRoom, configureSection, getSection, getMeta, reserveSeat, releaseSeat,
+  redis, resetAll, upsertRoom, getRoom, configureSection, getSection, getMeta, reserveSeat, releaseSeat,
 };

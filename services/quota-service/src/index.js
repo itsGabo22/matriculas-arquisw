@@ -42,6 +42,13 @@ app.post('/admin/sections', async (req, res) => {
   return res.status(201).json(section);
 });
 
+// Reinicio de la demo: vacía el estado de cupos en Redis (no toca RabbitMQ ni los workers).
+app.post('/admin/reset', async (req, res) => {
+  const removed = await store.resetAll();
+  log('Estado de cupos reiniciado', { correlationId: req.correlationId, keysRemoved: removed });
+  return res.json({ status: 'RESET', keysRemoved: removed });
+});
+
 app.get('/sections/:id', async (req, res) => {
   const section = await store.getSection(req.params.id);
   return section ? res.json(section) : res.status(404).json({ error: 'SECTION_NOT_FOUND' });

@@ -158,7 +158,9 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
       <span class="pill" id="pill-gw"><span class="dot"></span>api-gateway</span>
       <span class="pill" id="pill-quota"><span class="dot"></span>quota-service</span>
       <span class="pill" id="pill-mq"><span class="dot"></span>rabbitmq</span>
+      <button class="btn" id="btn-reset" type="button">Reiniciar todo</button>
     </div>
+    <p class="hint" id="reset-msg" style="flex-basis:100%;text-align:right" hidden></p>
   </header>
 
   <div class="guide">
@@ -225,7 +227,7 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
         <h2 id="h-ev"><span class="n alt">3</span>Después de reservar</h2>
         <p class="flow">Cada reserva exitosa publica <b>un aviso</b> (evento <code>SeatReserved</code>). Dos programas independientes lo reciben y trabajan a su propio ritmo.</p>
         <div id="queues"><p class="empty">Esperando a RabbitMQ…</p></div>
-        <p class="hint">Los totales cuentan desde que se creó la cola, no solo esta prueba. «En espera» incluye lo que se está procesando. RabbitMQ actualiza estas cifras cada ~5 s.</p>
+        <p class="hint">Los totales cuentan desde el último «Reiniciar todo». «En espera» incluye lo que se está procesando y puede incluir avisos de pruebas anteriores que aún se atienden. RabbitMQ actualiza estas cifras cada ~5 s.</p>
       </section>
     </div>
   </main>
@@ -236,6 +238,7 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
   var $ = function (id) { return document.getElementById(id); };
   var expiries = {}, results = [], counts = { ok: 0, no: 0 }, shown = 50, lastSection = null;
   var stats = { reasons: {}, lat: [], t0: 0, t1: 0 };
+  var base = {}, lastQ = [];    // contadores de colas al momento del último reinicio
 
   /* Mensajes en lenguaje llano para cada respuesta del sistema */
   var WHY = {
@@ -427,21 +430,45 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
     api('/mq/queues').then(function (r) {
       pill('pill-mq', r.status === 200);
       if (r.status !== 200 || !Array.isArray(r.body)) return;
+      lastQ = r.body;
       var box = $('queues'); box.replaceChildren(); box.style.display = 'grid'; box.style.gap = '12px';
       QUEUES.forEach(function (q) {
         var d = r.body.filter(function (x) { return x.name === q[0]; })[0]; if (!d) return;
         var st = d.message_stats || {}, card = el('div', 'queue'), up = (d.consumers || 0) > 0;
+        var b = base[q[0]] || { pub: 0, ack: 0 };
+        if ((st.publish || 0) < b.pub || (st.ack || 0) < b.ack) b = base[q[0]] = { pub: 0, ack: 0 };   // colas recreadas con docker down -v
+        var pub = (st.publish || 0) - b.pub, ack = (st.ack || 0) - b.ack;
         card.append(el('h3', null, q[1]), el('div', 'tech', q[2] + ' · cola ' + q[0]), el('div', 'what', q[3]));
         var m = el('div', 'metrics');
-        [['avisos recibidos', st.publish || 0], ['ya atendidos', st.ack || 0], ['en espera', d.messages || 0]].forEach(function (x) {
+        [['avisos recibidos', pub], ['ya atendidos', ack], ['en espera', d.messages || 0]].forEach(function (x) {
           var c = el('div'); c.append(el('b', null, String(x[1])), el('span', null, x[0])); m.appendChild(c);
         });
-        var bar = el('div', 'bar infra'), fill = el('i'); fill.style.width = (st.publish ? Math.min(100, (st.ack || 0) / st.publish * 100) : 0) + '%'; bar.appendChild(fill);
+        var bar = el('div', 'bar infra'), fill = el('i'); fill.style.width = (pub > 0 ? Math.min(100, ack / pub * 100) : 0) + '%'; bar.appendChild(fill);
         card.append(m, bar, el('div', 'conn' + (up ? '' : ' off'), up ? 'Programa conectado y escuchando' : 'Sin programa conectado'));
         box.appendChild(card);
       });
     }).catch(function () { pill('pill-mq', false); });
   }
+
+  /* ---------- Reiniciar todo (dos clics para evitar accidentes en plena exposición) ---------- */
+  var armed = null;
+  function disarm() { clearTimeout(armed); armed = null; $('btn-reset').textContent = 'Reiniciar todo'; $('btn-reset').classList.remove('warn'); }
+  $('btn-reset').onclick = function () {
+    var b = $('btn-reset'), msg = $('reset-msg');
+    if ($('btn-burst').disabled) return;                       // hay una ráfaga en curso
+    if (!armed) { b.textContent = '¿Seguro? Pulsa otra vez'; b.classList.add('warn'); armed = setTimeout(disarm, 6000); return; }
+    disarm(); b.disabled = true;
+    post('/admin/reset', {}).then(function (r) {
+      if (r.status >= 400) throw new Error('El sistema no pudo reiniciarse (¿reconstruiste quota-service?)');
+      expiries = {}; resetRun(); lastSection = null;
+      $('room-id').value = 'AULA-301'; $('room-cap').value = 2; $('section-id').value = 'ARQSW-01';
+      $('offered').value = 2; $('over').value = 0; $('student').value = 'est-001'; $('burst-n').value = 3;
+      base = {}; lastQ.forEach(function (d) { var s = d.message_stats || {}; base[d.name] = { pub: s.publish || 0, ack: s.ack || 0 }; });
+      renderCalc(); renderLog(); renderRoom(); pollQueues();
+      msg.textContent = 'Reiniciado a las ' + new Date().toLocaleTimeString('es-CO') + ': salones y reservas borrados, contadores en cero.'; msg.hidden = false;
+    }).catch(function (e) { msg.textContent = e.message; msg.hidden = false; })
+      .then(function () { b.disabled = false; });
+  };
 
   renderCalc(); pollHealth(); pollQueues(); renderLog(); refreshRoom();
   setInterval(pollHealth, 4000); setInterval(pollQueues, 2000); setInterval(refreshRoom, 1500);
