@@ -17,7 +17,7 @@ const sections = {
 // Perfil por defecto: estudiante regular elegible (permite pruebas de carga con IDs arbitrarios).
 const defaultStudent = {
   gpa: 4.0, approvedCourses: ['INGSW1', 'INGSW2'], enrolledCredits: 12,
-  enrolledCourses: [], schedule: [{ day: 'MAR', start: 10, end: 12 }],
+  enrolledCourses: ['REDES'], schedule: [{ day: 'MAR', start: 10, end: 12 }],
 };
 
 // Perfiles explícitos para demostrar cada regla de la cadena.
@@ -25,6 +25,7 @@ const students = {
   'est-sin-prerreq': { ...defaultStudent, approvedCourses: ['INGSW1'] },
   'est-prueba-acad': { ...defaultStudent, gpa: 2.8, enrolledCredits: 11 },
   'est-choque': { ...defaultStudent, schedule: [{ day: 'LUN', start: 9, end: 11 }] },
+  'est-sin-correq': { ...defaultStudent, enrolledCourses: [] },
 };
 
 const getStudent = (id) => students[id] || defaultStudent;

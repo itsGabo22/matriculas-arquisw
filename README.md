@@ -109,6 +109,7 @@ RESERVATION_TTL_SECONDS=20 docker compose up -d quota-service
 | `est-sin-prerreq` | `PREREQUISITE` (no aprobó INGSW2) |
 | `est-prueba-acad` | `CREDIT_LIMIT` (promedio 2.8 → tope 12 créditos) |
 | `est-choque` | `SCHEDULE_CONFLICT` (clase LUN 9–11) |
+| `est-sin-correq` | `COREQUISITE` en `LABRED-01` (no inscribió REDES) |
 
 ## Estructura
 

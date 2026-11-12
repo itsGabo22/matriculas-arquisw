@@ -5,17 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Consola de Matrículas</title>
 <style>
-/* Layout: consola de tres columnas (configuración | aula | eventos), pensada para proyector.
-   Concepto visual: tablero de control de planta física, aula = cuadrícula de sillas. */
+/* Layout: guía de tres pasos (preparar salón, matricular, observar), pensada para proyector.
+   Concepto visual: tablero de control de planta física; el salón es una cuadrícula de sillas. */
 :root {
   --bg: #0c1118;
   --surface: #141b25;
   --surface-2: #1a2330;
   --line: #2a3546;
   --fg: #e8edf5;
-  --muted: #8d9bb0;
-  --accent: #5b9dff;      /* síncrono / acción */
-  --infra: #f2b93b;       /* mensajería y datos, igual que en el C4 */
+  --muted: #98a6ba;
+  --accent: #5b9dff;
+  --infra: #f2b93b;
   --ok: #3ecf8e;
   --bad: #ff6b6b;
   --seat-free: #1f2b3b;
@@ -27,33 +27,43 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body {
-  background: var(--bg); color: var(--fg);
-  font: 15px/1.45 var(--font-body);
+  background: var(--bg); color: var(--fg); font: 15px/1.45 var(--font-body);
   padding-block: 20px 40px;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
+[hidden] { display: none !important; }
 .wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 20px; }
-h1, h2 { font-family: var(--font-display); margin: 0; text-wrap: balance; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; text-wrap: balance; }
 h1 { font-size: 1.5rem; letter-spacing: -0.01em; }
-h2 { font-size: .72rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); font-weight: 600; }
+h2 { font-size: 1.02rem; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+h2 .n { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #07101e; font-size: .8rem; font-weight: 700; flex: none; }
+h2 .n.alt { background: var(--infra); }
 button, input, select { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code { font: .85em var(--font-mono); color: var(--fg); }
 
 header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }
-header p { margin: 2px 0 0; color: var(--muted); font-size: .9rem; }
+header p { margin: 2px 0 0; color: var(--muted); font-size: .92rem; }
 .pills { display: flex; flex-wrap: wrap; gap: 8px; }
 .pill { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: .82rem; font-family: var(--font-mono); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
 .pill.up .dot { background: var(--ok); box-shadow: 0 0 0 3px rgba(62,207,142,.18); }
 .pill.down .dot { background: var(--bad); }
 
-main { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr) minmax(0, 380px); gap: 20px; align-items: start; }
-@media (max-width: 1080px) { main { grid-template-columns: minmax(0, 1fr); } }
+.guide { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 800px) { .guide { grid-template-columns: minmax(0, 1fr); } }
+.guide div { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: .88rem; color: var(--muted); }
+.guide b { display: block; color: var(--fg); font-size: .95rem; margin-bottom: 2px; }
+
+main { display: grid; grid-template-columns: minmax(0, 330px) minmax(0, 1fr) minmax(0, 380px); gap: 20px; align-items: start; }
+@media (max-width: 1100px) { main { grid-template-columns: minmax(0, 1fr); } }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 14px; }
 .stack { display: grid; gap: 20px; min-width: 0; }
+.sub { margin: -6px 0 0; font-size: .84rem; color: var(--muted); }
 
-label { display: grid; gap: 4px; font-size: .8rem; color: var(--muted); }
+label { display: grid; gap: 4px; font-size: .82rem; color: var(--muted); }
+label small { font-size: .74rem; opacity: .85; }
 input, select { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; width: 100%; }
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .btn { border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 9px 14px; cursor: pointer; font-weight: 600; }
@@ -61,66 +71,79 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
 .btn:disabled { opacity: .5; cursor: progress; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #07101e; }
 .btn.warn { border-color: var(--infra); color: var(--infra); background: transparent; }
-.actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { font: .76rem var(--font-mono); padding: 4px 8px; border-radius: 6px; border: 1px dashed var(--line); background: transparent; color: var(--muted); cursor: pointer; }
+.chip { font: .76rem var(--font-mono); padding: 4px 8px; border-radius: 6px; border: 1px dashed var(--line); background: transparent; color: var(--muted); cursor: pointer; text-align: left; }
 .chip:hover { color: var(--fg); border-color: var(--accent); }
-.hint { margin: 0; font-size: .78rem; color: var(--muted); }
+.chip.ex { font: .8rem var(--font-body); border-style: solid; }
+.hint { margin: 0; font-size: .8rem; color: var(--muted); }
+.lbl { margin: 0 0 6px; font-size: .8rem; color: var(--muted); }
 
-/* Aula */
+/* Cálculo del cupo */
+.calc { display: grid; gap: 6px; padding: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; font-size: .86rem; }
+.calc > div { display: flex; justify-content: space-between; gap: 12px; }
+.calc span { color: var(--muted); }
+.calc b { font-variant-numeric: tabular-nums; text-align: right; }
+.calc .result { border-top: 1px solid var(--line); padding-top: 8px; font-size: .95rem; }
+.calc .result b { color: var(--ok); font-size: 1.05rem; }
+.calc .note { display: block; color: var(--infra); font-size: .8rem; }
+
+/* Salón */
 .room-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
-.room-title { font: 600 1.15rem var(--font-display); }
-.counter { font: 700 3.2rem/1 var(--font-display); font-variant-numeric: tabular-nums; }
-.counter small { font-size: 1rem; color: var(--muted); font-weight: 500; }
-.seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 8px; }
-.seat { min-height: 52px; border-radius: 6px; background: var(--seat-free); border: 1px solid var(--line); display: grid; place-items: center; font: .72rem var(--font-mono); color: var(--muted); padding: 4px; text-align: center; }
+.room-title { font: 600 1.1rem var(--font-display); }
+.counter { font: 700 3rem/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.counter small { font-size: .95rem; color: var(--muted); font-weight: 500; }
+.seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.seat { min-height: 54px; border-radius: 6px; background: var(--seat-free); border: 1px solid var(--line); display: grid; place-items: center; font: .72rem var(--font-mono); color: var(--muted); padding: 4px; text-align: center; }
 .seat.taken { background: rgba(91,157,255,.14); border-color: var(--accent); color: var(--fg); }
 .seat.taken b { display: block; font-weight: 600; overflow-wrap: anywhere; }
 .seat.taken i { font-style: normal; color: var(--infra); font-variant-numeric: tabular-nums; }
-.full { border: 1px solid var(--bad); color: var(--bad); border-radius: 6px; padding: 8px 12px; font-weight: 600; }
-.empty { color: var(--muted); padding: 24px 0; text-align: center; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: .78rem; color: var(--muted); }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; background: var(--seat-free); border: 1px solid var(--line); vertical-align: -1px; }
+.legend span.t::before { background: rgba(91,157,255,.25); border-color: var(--accent); }
+.banner { border: 1px solid var(--bad); color: var(--bad); border-radius: 6px; padding: 8px 12px; font-weight: 600; }
+.banner.info { border-color: var(--infra); color: var(--infra); }
+.empty { color: var(--muted); padding: 18px 0; text-align: center; margin: 0; }
 
 /* Resultados */
+.summary { display: grid; gap: 10px; }
+.big { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline; }
+.big div { display: grid; }
+.big b { font: 700 2rem/1.1 var(--font-display); font-variant-numeric: tabular-nums; }
+.big span { font-size: .78rem; color: var(--muted); }
+.big .ok b { color: var(--ok); } .big .no b { color: var(--bad); }
+.reasons { display: flex; flex-wrap: wrap; gap: 6px; }
+.reason { font-size: .8rem; padding: 4px 9px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); }
+.reason.ok { border-color: var(--ok); color: var(--ok); }
+.reason b { margin-left: 6px; font-variant-numeric: tabular-nums; }
+.lat { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 6px; }
+.lat div { background: var(--bg); border-radius: 6px; padding: 6px 8px; }
+.lat b { display: block; font: 700 1.05rem var(--font-display); font-variant-numeric: tabular-nums; }
+.lat span { font-size: .7rem; color: var(--muted); }
+.verdict { padding: 8px 12px; border-radius: 6px; font-weight: 600; border: 1px solid var(--ok); color: var(--ok); }
+.verdict.bad { border-color: var(--bad); color: var(--bad); }
 .log { display: grid; gap: 6px; max-height: 340px; overflow: auto; }
-.res { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 6px; background: var(--bg); border-left: 3px solid var(--muted); font-size: .84rem; }
-.res.ok { border-left-color: var(--ok); }
-.res.no { border-left-color: var(--bad); }
-.res code { font: .75rem var(--font-mono); color: var(--muted); }
-.res .code { font: 700 .95rem var(--font-mono); }
-.res.ok .code { color: var(--ok); }
-.res.no .code { color: var(--bad); }
-.res .msg { min-width: 0; overflow-wrap: anywhere; }
-.tally { display: flex; flex-wrap: wrap; gap: 8px 18px; font: .85rem var(--font-mono); }
-.tally b { font-size: 1.1rem; }
-
-/* Colas */
-.queue { display: grid; gap: 8px; padding: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
-.queue h3 { margin: 0; font: 600 .86rem var(--font-mono); color: var(--infra); overflow-wrap: anywhere; }
-.queue .who { color: var(--muted); font-size: .8rem; margin-top: -4px; }
-.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; text-align: center; }
-.metrics div { background: var(--surface); border-radius: 6px; padding: 6px 2px; }
-.metrics b { display: block; font: 700 1.25rem var(--font-display); font-variant-numeric: tabular-nums; }
-.metrics span { font-size: .66rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
-.flow { font: .74rem/1.7 var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
-.flow em { font-style: normal; color: var(--accent); }
-.flow strong { font-weight: 400; color: var(--infra); }
-[hidden] { display: none !important; }
+.res { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 6px; background: var(--bg); border-left: 3px solid var(--muted); font-size: .84rem; }
+.res.ok { border-left-color: var(--ok); } .res.no { border-left-color: var(--bad); }
+.res .code { font: 700 .92rem var(--font-mono); } .res.ok .code { color: var(--ok); } .res.no .code { color: var(--bad); }
+.res small { display: block; color: var(--muted); font-size: .76rem; overflow-wrap: anywhere; }
+.res time { font: .75rem var(--font-mono); color: var(--muted); }
+.more { justify-self: start; }
 .bar { height: 6px; background: var(--seat-free); border-radius: 3px; overflow: hidden; }
 .bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
 .bar.infra > i { background: var(--infra); }
-.preview { color: var(--muted); }
-.summary { display: grid; gap: 10px; }
-.reasons { display: flex; flex-wrap: wrap; gap: 6px; }
-.reason { font: .78rem var(--font-mono); padding: 4px 9px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); }
-.reason.ok { border-color: var(--ok); color: var(--ok); }
-.reason b { margin-left: 6px; }
-.lat { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 6px; }
-.lat div { background: var(--bg); border-radius: 6px; padding: 6px 8px; }
-.lat b { display: block; font: 700 1.05rem var(--font-display); font-variant-numeric: tabular-nums; }
-.lat span { font-size: .66rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
-.verdict { padding: 8px 12px; border-radius: 6px; font-weight: 600; border: 1px solid var(--ok); color: var(--ok); }
-.verdict.bad { border-color: var(--bad); color: var(--bad); }
-.more { justify-self: start; }
+
+/* Después de reservar */
+.flow { margin: 0; font-size: .86rem; color: var(--muted); }
+.flow b { color: var(--infra); font-weight: 600; }
+.queue { display: grid; gap: 8px; padding: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+.queue h3 { margin: 0; font-size: 1rem; }
+.queue .tech { font: .74rem var(--font-mono); color: var(--infra); margin-top: -4px; overflow-wrap: anywhere; }
+.queue .what { font-size: .8rem; color: var(--muted); }
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; text-align: center; }
+.metrics div { background: var(--surface); border-radius: 6px; padding: 6px 2px; }
+.metrics b { display: block; font: 700 1.3rem var(--font-display); font-variant-numeric: tabular-nums; }
+.metrics span { font-size: .72rem; color: var(--muted); }
+.conn { font-size: .78rem; color: var(--ok); } .conn.off { color: var(--bad); }
 @media (prefers-reduced-motion: no-preference) { .seat, .res { transition: background .25s, border-color .25s; } }
 </style>
 </head>
@@ -129,7 +152,7 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
   <header>
     <div>
       <h1>Consola de Matrículas</h1>
-      <p>Walking skeleton en vivo: cada botón llama al sistema real a través del api-gateway.</p>
+      <p>Cada botón llama al sistema real, que corre en los contenedores de Docker.</p>
     </div>
     <div class="pills" aria-label="Estado de servicios">
       <span class="pill" id="pill-gw"><span class="dot"></span>api-gateway</span>
@@ -138,14 +161,21 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
     </div>
   </header>
 
+  <div class="guide">
+    <div><b>1. Prepara el salón</b>Define cuántas sillas tiene el aula y cuántos cupos abre el director.</div>
+    <div><b>2. Matricula estudiantes</b>Uno solo, o una ráfaga de muchos al mismo tiempo compitiendo por las sillas.</div>
+    <div><b>3. Observa</b>Quién entró, quién fue rechazado y por qué, y cómo reaccionan facturación y auditoría.</div>
+  </div>
+
   <main>
-    <!-- Columna 1: configuración y disparo -->
     <div class="stack">
       <section class="panel" aria-labelledby="h-setup">
-        <h2 id="h-setup">1 · Planta física y oferta</h2>
+        <h2 id="h-setup"><span class="n">1</span>Prepara el salón</h2>
+        <p class="sub">Empieza con un ejemplo o escribe tus propios números.</p>
+        <div class="chips" id="examples"></div>
         <div class="row">
           <label>Aula<input id="room-id" value="AULA-301"></label>
-          <label>Aforo<input id="room-cap" type="number" min="1" value="2"></label>
+          <label>Sillas del salón<small>aforo físico</small><input id="room-cap" type="number" min="1" value="2"></label>
         </div>
         <label>Grupo
           <select id="section-id">
@@ -154,53 +184,48 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
           </select>
         </label>
         <div class="row">
-          <label>Cupo ofertado<input id="offered" type="number" min="1" value="30"></label>
-          <label>Sobrecupo<input id="over" type="number" min="0" value="2"></label>
+          <label>Cupos que abre el director<input id="offered" type="number" min="1" value="2"></label>
+          <label>Sobrecupo autorizado<small>cupos extra</small><input id="over" type="number" min="0" value="0"></label>
         </div>
-        <button class="btn primary" id="btn-setup">Crear aula y abrir grupo</button>
-        <p class="hint preview" id="preview"></p>
+        <div class="calc" id="calc" aria-live="polite"></div>
+        <button class="btn primary" id="btn-setup">Abrir el salón con estos datos</button>
       </section>
 
       <section class="panel" aria-labelledby="h-fire">
-        <h2 id="h-fire">2 · Matrículas</h2>
-        <label>Estudiante<input id="student" value="est-001"></label>
-        <div class="actions">
-          <button class="btn primary" id="btn-one">Matricular</button>
-        </div>
-        <div class="row">
-          <label>Solicitudes<input id="burst-n" type="number" min="1" max="5000" value="3"></label>
-          <button class="btn warn" id="btn-burst" style="align-self:end">Disparar ráfaga</button>
-        </div>
+        <h2 id="h-fire"><span class="n">2</span>Matricula estudiantes</h2>
+        <label>Un estudiante<input id="student" value="est-001"></label>
+        <button class="btn primary" id="btn-one">Matricular a este estudiante</button>
+        <label>Muchos estudiantes a la vez<small>cada uno con un código distinto, hasta 5.000</small>
+          <input id="burst-n" type="number" min="1" max="5000" value="3">
+        </label>
+        <button class="btn warn" id="btn-burst">Disparar la ráfaga</button>
         <div class="bar" id="prog" hidden><i></i></div>
-        <p class="hint">Hasta 5.000 por ráfaga, con 64 en vuelo a la vez. El navegador limita las conexiones simultáneas por servidor; para 100 simultáneas exactas usa <code>./demo.sh estres</code>.</p>
         <div>
-          <p class="hint" style="margin-bottom:6px">Casos de la cadena de reglas:</p>
+          <p class="lbl">Estudiantes que rompen una regla académica:</p>
           <div class="chips" id="presets"></div>
         </div>
+        <p class="hint">Se envían 64 solicitudes a la vez; el navegador limita las conexiones simultáneas. Para 100 simultáneas exactas usa <code>./demo.sh estres</code>.</p>
       </section>
     </div>
 
-    <!-- Columna 2: aula -->
     <div class="stack">
       <section class="panel" aria-labelledby="h-room">
-        <h2 id="h-room">Aula en Redis</h2>
-        <div id="room-view"><p class="empty">Crea un aula y abre un grupo para ver las sillas.</p></div>
+        <h2 id="h-room"><span class="n alt">3</span>El salón ahora mismo</h2>
+        <div id="room-view"><p class="empty">Aún no hay un salón abierto. Usa «Abrir el salón» en el paso 1.</p></div>
       </section>
       <section class="panel" aria-labelledby="h-res">
-        <h2 id="h-res">Respuestas de quota-service</h2>
+        <h2 id="h-res"><span class="n alt">3</span>Qué respondió el sistema</h2>
         <div class="summary" id="summary"></div>
-        <div class="tally" id="tally"></div>
         <div class="log" id="log" aria-live="polite"><p class="empty">Aún no hay matrículas.</p></div>
       </section>
     </div>
 
-    <!-- Columna 3: eventos -->
     <div class="stack">
       <section class="panel" aria-labelledby="h-ev">
-        <h2 id="h-ev">Evento SeatReserved</h2>
-        <p class="flow"><em>quota-service</em> publica <strong>SeatReserved</strong> en el exchange <strong>enrollment.events</strong>. Cada cola es de un consumidor distinto.</p>
-        <div id="queues"><p class="empty">Esperando RabbitMQ…</p></div>
-        <p class="hint"><b>Publicados</b> y <b>procesados</b> son acumulados desde que existe la cola. <b>Pendientes</b> = esperando + en proceso. La barra muestra procesados sobre publicados. RabbitMQ refresca estas cifras cada ~5 s; los logs detallados siguen en la terminal.</p>
+        <h2 id="h-ev"><span class="n alt">3</span>Después de reservar</h2>
+        <p class="flow">Cada reserva exitosa publica <b>un aviso</b> (evento <code>SeatReserved</code>). Dos programas independientes lo reciben y trabajan a su propio ritmo.</p>
+        <div id="queues"><p class="empty">Esperando a RabbitMQ…</p></div>
+        <p class="hint">Los totales cuentan desde que se creó la cola, no solo esta prueba. «En espera» incluye lo que se está procesando. RabbitMQ actualiza estas cifras cada ~5 s.</p>
       </section>
     </div>
   </main>
@@ -209,17 +234,23 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var expiries = {};            // studentId -> epoch ms de expiración de la reserva
-  var results = [];             // últimas respuestas
-  var counts = { ok: 0, no: 0 };
-  var shown = 50;               // filas visibles en la lista (el resumen cuenta todas)
+  var expiries = {}, results = [], counts = { ok: 0, no: 0 }, shown = 50, lastSection = null;
   var stats = { reasons: {}, lat: [], t0: 0, t1: 0 };
-  function resetRun() { results = []; counts = { ok: 0, no: 0 }; shown = 50; stats = { reasons: {}, lat: [], t0: 0, t1: 0 }; }
-  function track(r) {
-    stats.lat.push(r.ms);
-    var key = r.status === 201 ? 'RESERVED' : (r.body.failedRule || r.body.reason || r.body.error || ('HTTP ' + r.status));
-    stats.reasons[key] = (stats.reasons[key] || 0) + 1;
-  }
+
+  /* Mensajes en lenguaje llano para cada respuesta del sistema */
+  var WHY = {
+    RESERVED: 'Cupo reservado',
+    SEAT_LIMIT_REACHED: 'Salón lleno: no quedan sillas',
+    ALREADY_RESERVED: 'Este estudiante ya tiene cupo',
+    SECTION_NOT_CONFIGURED: 'El grupo no está abierto: usa «Abrir el salón» (paso 1) con este grupo',
+    PREREQUISITE: 'Rechazado: falta un prerrequisito',
+    COREQUISITE: 'Rechazado: falta inscribir el correquisito',
+    CREDIT_LIMIT: 'Rechazado: supera el tope de créditos',
+    SCHEDULE_CONFLICT: 'Rechazado: choca con otra clase',
+    VALIDATION_UNAVAILABLE: 'El servicio de validación no responde',
+    EVENT_BROKER_UNAVAILABLE: 'RabbitMQ no responde; el cupo se devolvió'
+  };
+  function keyOf(r) { return r.status === 201 ? 'RESERVED' : (r.body.failedRule || r.body.reason || r.body.error || ('HTTP ' + r.status)); }
 
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function api(path, opts) {
@@ -229,102 +260,124 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
     });
   }
   function post(path, data) { return api(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) }); }
+  function resetRun() { results = []; counts = { ok: 0, no: 0 }; shown = 50; stats = { reasons: {}, lat: [], t0: 0, t1: 0 }; }
+  function track(r) { stats.lat.push(r.ms); var k = keyOf(r); stats.reasons[k] = (stats.reasons[k] || 0) + 1; }
 
   /* ---------- Estado de servicios ---------- */
-  function pill(id, up) { var p = $(id); p.className = 'pill ' + (up ? 'up' : 'down'); }
+  function pill(id, up) { $(id).className = 'pill ' + (up ? 'up' : 'down'); }
   function pollHealth() {
     api('/gateway/health').then(function (r) { pill('pill-gw', r.status === 200); }).catch(function () { pill('pill-gw', false); });
     api('/health').then(function (r) { pill('pill-quota', r.status === 200); }).catch(function () { pill('pill-quota', false); });
   }
 
-  /* ---------- Configuración ---------- */
+  /* ---------- Paso 1: cálculo del cupo y ejemplos ---------- */
+  function num(id) { return parseInt($(id).value, 10) || 0; }
+  function renderCalc() {
+    var cap = num('room-cap'), off = num('offered'), ov = num('over'), sum = off + ov, eff = Math.min(sum, cap), c = $('calc');
+    c.replaceChildren();
+    function line(a, b) { var d = el('div'); d.append(el('span', null, a), el('b', null, b)); c.appendChild(d); }
+    line('Cupos que abre el director', off + ' + ' + ov + ' extra = ' + sum);
+    line('Sillas reales del salón', String(cap));
+    var r = el('div', 'result'); var left = el('span', null, 'Cupos que se habilitan'); var right = el('div'); right.style.textAlign = 'right';
+    right.appendChild(el('b', null, String(eff)));
+    if (sum > cap) right.appendChild(el('span', 'note', 'Pidieron ' + sum + ' pero solo hay ' + cap + ' sillas: se recortan ' + (sum - cap) + '. El aforo manda.'));
+    else right.appendChild(el('span', 'note', sum === cap ? 'Coincide con las sillas del salón.' : 'Quedan ' + (cap - sum) + ' sillas sin cupo asignado.'));
+    right.lastChild.style.color = sum > cap ? 'var(--infra)' : 'var(--muted)';
+    r.append(left, right); c.appendChild(r);
+  }
+  ['room-cap', 'offered', 'over'].forEach(function (id) { $(id).oninput = renderCalc; });
+  [['Demo básica: 2 sillas', 2, 2, 0, 3], ['El aforo recorta la oferta', 20, 30, 15, 40], ['Carga fuerte: 1.000 solicitudes', 20, 20, 0, 1000]].forEach(function (x) {
+    var b = el('button', 'chip ex', x[0]); b.type = 'button';
+    b.onclick = function () { $('room-cap').value = x[1]; $('offered').value = x[2]; $('over').value = x[3]; $('burst-n').value = x[4]; renderCalc(); };
+    $('examples').appendChild(b);
+  });
+
   $('btn-setup').onclick = function () {
     var btn = $('btn-setup'); btn.disabled = true;
-    post('/admin/rooms', { roomId: $('room-id').value.trim(), capacity: parseInt($('room-cap').value, 10) })
+    post('/admin/rooms', { roomId: $('room-id').value.trim(), capacity: num('room-cap') })
       .then(function (r) {
         if (r.status >= 400) throw new Error(r.body.error || 'No se pudo crear el aula');
-        return post('/admin/sections', { sectionId: $('section-id').value, roomId: $('room-id').value.trim(), offeredSeats: parseInt($('offered').value, 10), authorizedOverbooking: parseInt($('over').value, 10) || 0 });
+        return post('/admin/sections', { sectionId: $('section-id').value, roomId: $('room-id').value.trim(), offeredSeats: num('offered'), authorizedOverbooking: num('over') });
       })
       .then(function (r) {
         if (r.status >= 400) throw new Error(r.body.error || 'No se pudo abrir el grupo');
-        expiries = {}; resetRun(); renderLog();
-        return refreshRoom();
+        expiries = {}; resetRun(); renderLog(); return refreshRoom();
       })
-      .catch(function (e) { $('room-view').replaceChildren(el('p', 'full', e.message)); })
+      .catch(function (e) { $('room-view').replaceChildren(el('div', 'banner', e.message)); })
       .then(function () { btn.disabled = false; });
   };
 
-  /* ---------- Aula ---------- */
+  /* ---------- Salón ---------- */
   function fmt(ms) { var s = Math.max(0, Math.round(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
-  var lastSection = null;
   function refreshRoom() {
     return api('/sections/' + encodeURIComponent($('section-id').value)).then(function (r) {
-      if (r.status !== 200) { lastSection = null; return; }
-      lastSection = r.body; renderRoom();
+      lastSection = r.status === 200 ? r.body : null; renderRoom();
     }).catch(function () {});
   }
   function renderRoom() {
-    var s = lastSection; if (!s) return;
+    var s = lastSection, box = $('room-view');
+    if (!s) { box.replaceChildren(el('div', 'banner info', 'El grupo ' + $('section-id').value + ' todavía no está abierto. Pulsa «Abrir el salón» en el paso 1 y luego matricula.')); return; }
     var view = el('div'); view.style.display = 'grid'; view.style.gap = '14px';
-    var head = el('div', 'room-head');
-    var left = el('div'); left.appendChild(el('div', 'room-title', s.roomId + ' · ' + s.sectionId));
-    left.appendChild(el('div', 'hint', 'Aforo físico ' + s.roomCapacity + ' · cupo efectivo ' + s.totalSeats));
-    var cnt = el('div', 'counter', String(s.availableSeats)); cnt.appendChild(el('small', null, ' / ' + s.totalSeats + ' libres'));
+    var head = el('div', 'room-head'); var left = el('div');
+    left.appendChild(el('div', 'room-title', s.roomId + ' · ' + s.sectionId));
+    left.appendChild(el('div', 'hint', 'Sillas del salón: ' + s.roomCapacity + ' · cupos habilitados: ' + s.totalSeats));
+    var cnt = el('div', 'counter', String(s.availableSeats)); cnt.appendChild(el('small', null, ' sillas libres'));
     head.append(left, cnt); view.appendChild(head);
-    if (s.availableSeats === 0) view.appendChild(el('div', 'full', 'Aforo físico agotado: las nuevas solicitudes se rechazan con 409.'));
-    var grid = el('div', 'seats'); var shown = Math.min(s.totalSeats, 60);
-    for (var i = 0; i < shown; i++) {
-      var id = s.activeReservations[i]; var seat = el('div', 'seat' + (id ? ' taken' : ''));
-      if (id) { seat.appendChild(el('b', null, id)); var exp = expiries[id]; seat.appendChild(el('i', null, exp ? 'TTL ' + fmt(exp - Date.now()) : 'TTL activo')); }
+    if (s.availableSeats === 0) view.appendChild(el('div', 'banner', 'Salón lleno: el sistema rechaza a quien llegue (respuesta 409).'));
+    var grid = el('div', 'seats'), n = Math.min(s.totalSeats, 60);
+    for (var i = 0; i < n; i++) {
+      var id = s.activeReservations[i], seat = el('div', 'seat' + (id ? ' taken' : ''));
+      if (id) { seat.appendChild(el('b', null, id)); seat.appendChild(el('i', null, expiries[id] ? 'vence en ' + fmt(expiries[id] - Date.now()) : 'reservada')); }
       else seat.textContent = 'libre';
       grid.appendChild(seat);
     }
     view.appendChild(grid);
-    if (s.totalSeats > shown) view.appendChild(el('p', 'hint', 'Se muestran ' + shown + ' de ' + s.totalSeats + ' sillas.'));
-    $('room-view').replaceChildren(view);
+    if (s.totalSeats > n) view.appendChild(el('p', 'hint', 'Se dibujan ' + n + ' de ' + s.totalSeats + ' sillas.'));
+    var lg = el('div', 'legend'); lg.append(el('span', null, 'Silla libre'), el('span', 't', 'Silla con reserva: el estudiante tiene 10 min para pagar; si no, la silla se libera sola'));
+    view.appendChild(lg);
+    box.replaceChildren(view);
   }
 
-  /* ---------- Matrículas ---------- */
-  function renderLog() {
-    var t = $('tally'); t.replaceChildren();
-    var a = el('span'); a.append('Reservadas ', Object.assign(el('b', null, String(counts.ok)), { style: 'color:var(--ok)' }));
-    var b = el('span'); b.append('Rechazadas ', Object.assign(el('b', null, String(counts.no)), { style: 'color:var(--bad)' }));
-    t.append(a, b); renderSummary();
-    var log = $('log'); log.replaceChildren();
-    if (!results.length) { log.appendChild(el('p', 'empty', 'Aún no hay matrículas.')); return; }
-    results.slice(0, shown).forEach(function (r) {
-      var ok = r.status === 201; var row = el('div', 'res ' + (ok ? 'ok' : 'no'));
-      var detail = ok ? 'RESERVED · quedan ' + r.body.remainingSeats : (r.body.failedRule || r.body.reason || r.body.error || 'error') + (r.body.detail ? ' · ' + r.body.detail : '');
-      var m = el('div', 'msg'); m.append(el('strong', null, r.student), el('br'), detail);
-      row.append(el('span', 'code', String(r.status)), m, el('code', null, r.ms + ' ms'));
-      log.appendChild(row);
-    });
-    if (results.length > shown) {
-      var more = el('button', 'btn more', 'Ver 50 más (' + (results.length - shown) + ' restantes)'); more.type = 'button';
-      more.onclick = function () { shown += 50; renderLog(); }; log.appendChild(more);
-    }
-  }
+  /* ---------- Respuestas ---------- */
   function pct(sorted, p) { return sorted.length ? sorted[Math.min(sorted.length - 1, Math.ceil(p / 100 * sorted.length) - 1)] : 0; }
   function renderSummary() {
     var box = $('summary'); box.replaceChildren();
     if (!stats.lat.length) return;
+    var big = el('div', 'big');
+    [['ok', counts.ok, 'reservaron cupo'], ['no', counts.no, 'rechazados'], ['', stats.lat.length, 'solicitudes en total']].forEach(function (x) {
+      var d = el('div', x[0]); d.append(el('b', null, String(x[1])), el('span', null, x[2])); big.appendChild(d);
+    });
+    box.appendChild(big);
     var reasons = el('div', 'reasons');
     Object.keys(stats.reasons).sort(function (a, b) { return stats.reasons[b] - stats.reasons[a]; }).forEach(function (k) {
-      var c = el('span', 'reason' + (k === 'RESERVED' ? ' ok' : ''), k); c.appendChild(el('b', null, String(stats.reasons[k]))); reasons.appendChild(c);
+      var c = el('span', 'reason' + (k === 'RESERVED' ? ' ok' : ''), WHY[k] || k); c.appendChild(el('b', null, String(stats.reasons[k]))); reasons.appendChild(c);
     });
     box.appendChild(reasons);
     var s = stats.lat.slice().sort(function (a, b) { return a - b; });
-    var elapsed = ((stats.t1 || performance.now()) - stats.t0) / 1000;
-    var lat = el('div', 'lat');
-    var cells = [['total', s.length], ['p50', pct(s, 50) + ' ms'], ['p95', pct(s, 95) + ' ms'], ['p99', pct(s, 99) + ' ms'], ['máximo', s[s.length - 1] + ' ms']];
-    if (stats.t0) cells.push(['req/s', (s.length / Math.max(elapsed, 0.001)).toFixed(0)]);
-    cells.forEach(function (c) { var d = el('div'); d.append(el('b', null, String(c[1])), el('span', null, c[0])); lat.appendChild(d); });
+    var elapsed = ((stats.t1 || performance.now()) - stats.t0) / 1000, lat = el('div', 'lat');
+    var cells = [['tiempo típico (p50)', pct(s, 50) + ' ms'], ['el 95 % respondió en (p95)', pct(s, 95) + ' ms'], ['el 99 % respondió en (p99)', pct(s, 99) + ' ms'], ['el más lento', s[s.length - 1] + ' ms']];
+    if (stats.t0 && s.length > 1) cells.push(['solicitudes por segundo', (s.length / Math.max(elapsed, 0.001)).toFixed(0)]);
+    cells.forEach(function (c) { var d = el('div'); d.append(el('b', null, c[1]), el('span', null, c[0])); lat.appendChild(d); });
     box.appendChild(lat);
     if (stats.t1 && lastSection) {
-      var okN = stats.reasons.RESERVED || 0; var good = okN <= lastSection.totalSeats && lastSection.availableSeats >= 0;
+      var okN = stats.reasons.RESERVED || 0, good = okN <= lastSection.totalSeats && lastSection.availableSeats >= 0;
       box.appendChild(el('div', 'verdict' + (good ? '' : ' bad'), good
-        ? '0 sobreventas: ' + okN + ' reservadas con un cupo efectivo de ' + lastSection.totalSeats + ' (libres: ' + lastSection.availableSeats + ')'
-        : 'Sobreventa detectada: ' + okN + ' reservadas con cupo efectivo ' + lastSection.totalSeats));
+        ? 'Sin sobreventa: se reservaron ' + okN + ' cupos y el salón permite ' + lastSection.totalSeats + '.'
+        : 'Sobreventa detectada: ' + okN + ' reservas para ' + lastSection.totalSeats + ' cupos.'));
+    }
+  }
+  function renderLog() {
+    renderSummary();
+    var log = $('log'); log.replaceChildren();
+    if (!results.length) { log.appendChild(el('p', 'empty', 'Aún no hay matrículas.')); return; }
+    results.slice(0, shown).forEach(function (r) {
+      var ok = r.status === 201, k = keyOf(r), row = el('div', 'res ' + (ok ? 'ok' : 'no'));
+      var m = el('div'); m.append(el('strong', null, r.student), el('small', null, (WHY[k] || k) + (ok ? ' · quedan ' + r.body.remainingSeats + ' sillas' : (r.body.detail ? ' · ' + r.body.detail : ''))));
+      row.append(el('span', 'code', String(r.status)), m, el('time', null, r.ms + ' ms')); log.appendChild(row);
+    });
+    if (results.length > shown) {
+      var more = el('button', 'btn more', 'Ver 50 más (' + (results.length - shown) + ' restantes)'); more.type = 'button';
+      more.onclick = function () { shown += 50; renderLog(); }; log.appendChild(more);
     }
   }
   function enroll(student) {
@@ -333,14 +386,16 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
       if (r.status === 201) { counts.ok++; expiries[student] = new Date(r.body.expiresAt).getTime(); } else counts.no++;
       track(r); results.unshift(r); return r;
     }).catch(function () {
-      var r = { student: student, status: 0, body: { error: 'sin conexión con el gateway' }, ms: 0 };
+      var r = { student: student, status: 0, body: { error: 'Sin conexión con el gateway' }, ms: 0 };
       counts.no++; track(r); results.unshift(r);
     });
   }
   function done() { renderLog(); refreshRoom(); }
-  $('btn-one').onclick = function () { enroll($('student').value.trim()).then(done); };
+  function single(student) { if (!stats.t0) stats.t0 = performance.now(); enroll(student).then(done); }
+
+  $('btn-one').onclick = function () { single($('student').value.trim()); };
   $('btn-burst').onclick = function () {
-    var n = Math.min(5000, Math.max(1, parseInt($('burst-n').value, 10) || 1)); var btn = $('btn-burst'); btn.disabled = true;
+    var n = Math.min(5000, Math.max(1, num('burst-n') || 1)), btn = $('btn-burst'); btn.disabled = true;
     resetRun(); stats.t0 = performance.now();
     var run = Date.now().toString(36).slice(-3), width = Math.max(3, String(n).length), next = 1, finished = 0, bar = $('prog');
     bar.hidden = false; bar.firstChild.style.width = '0%';
@@ -356,26 +411,18 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
     var workers = []; for (var w = 0; w < Math.min(64, n); w++) workers.push(pump());
     Promise.all(workers).then(function () { stats.t1 = performance.now(); bar.hidden = true; btn.disabled = false; done(); });
   };
-  [['est-sin-prerreq', 'sin prerrequisito'], ['est-prueba-acad', 'prueba académica'], ['est-choque', 'choque de horario']].forEach(function (p) {
-    var c = el('button', 'chip', p[0]); c.title = p[1]; c.type = 'button';
-    c.onclick = function () { $('student').value = p[0]; enroll(p[0]).then(done); };
+  [['est-sin-prerreq', 'ARQSW-01', 'no aprobó INGSW2'], ['est-prueba-acad', 'ARQSW-01', 'promedio 2,8: tope de 12 créditos'], ['est-choque', 'ARQSW-01', 'tiene clase el lunes 9 a 11'], ['est-sin-correq', 'LABRED-01', 'no inscribió REDES']].forEach(function (p) {
+    var c = el('button', 'chip', p[0] + ' · ' + p[2]); c.type = 'button';
+    c.onclick = function () { $('section-id').value = p[1]; $('student').value = p[0]; refreshRoom().then(function () { single(p[0]); }); };
     $('presets').appendChild(c);
   });
   $('section-id').onchange = refreshRoom;
 
-  /* Vista previa del cupo efectivo: min(oferta + sobrecupo, aforo) */
-  function preview() {
-    var cap = parseInt($('room-cap').value, 10) || 0, off = parseInt($('offered').value, 10) || 0, ov = parseInt($('over').value, 10) || 0;
-    var sum = off + ov, eff = Math.min(sum, cap), p = $('preview');
-    p.textContent = 'Cupo efectivo = menor entre (' + off + ' + ' + ov + ' = ' + sum + ') y el aforo ' + cap + ' → ' + eff +
-      (sum > cap ? '. El aforo físico recorta ' + (sum - cap) + ' cupos.' : '.');
-    p.style.color = sum > cap ? 'var(--infra)' : 'var(--muted)';
-  }
-  ['room-cap', 'offered', 'over'].forEach(function (id) { $(id).oninput = preview; });
-  preview();
-
-  /* ---------- Colas de RabbitMQ ---------- */
-  var QUEUES = [['billing.seat-reserved', 'Consumidor 1 · billing-worker (ERP)'], ['audit.seat-reserved', 'Consumidor 2 · audit-notification-worker']];
+  /* ---------- Después de reservar: colas de RabbitMQ ---------- */
+  var QUEUES = [
+    ['billing.seat-reserved', 'Facturación', 'billing-worker', 'Pide el recibo al ERP, que es lento (1,5 a 3 s cada uno).'],
+    ['audit.seat-reserved', 'Auditoría', 'audit-notification-worker', 'Deja la traza y avisa si el aula se llena. Es rápido.']
+  ];
   function pollQueues() {
     api('/mq/queues').then(function (r) {
       pill('pill-mq', r.status === 200);
@@ -383,19 +430,20 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
       var box = $('queues'); box.replaceChildren(); box.style.display = 'grid'; box.style.gap = '12px';
       QUEUES.forEach(function (q) {
         var d = r.body.filter(function (x) { return x.name === q[0]; })[0]; if (!d) return;
-        var st = d.message_stats || {}; var card = el('div', 'queue');
-        card.append(el('h3', null, q[0]), el('div', 'who', q[1]));
+        var st = d.message_stats || {}, card = el('div', 'queue'), up = (d.consumers || 0) > 0;
+        card.append(el('h3', null, q[1]), el('div', 'tech', q[2] + ' · cola ' + q[0]), el('div', 'what', q[3]));
         var m = el('div', 'metrics');
-        [['consumidores', d.consumers || 0], ['pendientes', d.messages || 0], ['publicados', st.publish || 0], ['procesados', st.ack || 0]].forEach(function (x) {
+        [['avisos recibidos', st.publish || 0], ['ya atendidos', st.ack || 0], ['en espera', d.messages || 0]].forEach(function (x) {
           var c = el('div'); c.append(el('b', null, String(x[1])), el('span', null, x[0])); m.appendChild(c);
         });
-        var bar = el('div', 'bar infra'); var fill = el('i'); fill.style.width = (st.publish ? Math.min(100, (st.ack || 0) / st.publish * 100) : 0) + '%'; bar.appendChild(fill);
-        card.append(m, bar); box.appendChild(card);
+        var bar = el('div', 'bar infra'), fill = el('i'); fill.style.width = (st.publish ? Math.min(100, (st.ack || 0) / st.publish * 100) : 0) + '%'; bar.appendChild(fill);
+        card.append(m, bar, el('div', 'conn' + (up ? '' : ' off'), up ? 'Programa conectado y escuchando' : 'Sin programa conectado'));
+        box.appendChild(card);
       });
     }).catch(function () { pill('pill-mq', false); });
   }
 
-  pollHealth(); pollQueues(); renderLog(); refreshRoom();
+  renderCalc(); pollHealth(); pollQueues(); renderLog(); refreshRoom();
   setInterval(pollHealth, 4000); setInterval(pollQueues, 2000); setInterval(refreshRoom, 1500);
   setInterval(function () { if (lastSection && lastSection.activeReservations.length) renderRoom(); }, 1000);
 })();
