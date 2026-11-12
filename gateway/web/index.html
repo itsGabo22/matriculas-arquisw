@@ -104,6 +104,23 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
 .flow { font: .74rem/1.7 var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
 .flow em { font-style: normal; color: var(--accent); }
 .flow strong { font-weight: 400; color: var(--infra); }
+[hidden] { display: none !important; }
+.bar { height: 6px; background: var(--seat-free); border-radius: 3px; overflow: hidden; }
+.bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+.bar.infra > i { background: var(--infra); }
+.preview { color: var(--muted); }
+.summary { display: grid; gap: 10px; }
+.reasons { display: flex; flex-wrap: wrap; gap: 6px; }
+.reason { font: .78rem var(--font-mono); padding: 4px 9px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); }
+.reason.ok { border-color: var(--ok); color: var(--ok); }
+.reason b { margin-left: 6px; }
+.lat { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 6px; }
+.lat div { background: var(--bg); border-radius: 6px; padding: 6px 8px; }
+.lat b { display: block; font: 700 1.05rem var(--font-display); font-variant-numeric: tabular-nums; }
+.lat span { font-size: .66rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.verdict { padding: 8px 12px; border-radius: 6px; font-weight: 600; border: 1px solid var(--ok); color: var(--ok); }
+.verdict.bad { border-color: var(--bad); color: var(--bad); }
+.more { justify-self: start; }
 @media (prefers-reduced-motion: no-preference) { .seat, .res { transition: background .25s, border-color .25s; } }
 </style>
 </head>
@@ -141,7 +158,7 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
           <label>Sobrecupo<input id="over" type="number" min="0" value="2"></label>
         </div>
         <button class="btn primary" id="btn-setup">Crear aula y abrir grupo</button>
-        <p class="hint">El cupo efectivo es el menor entre oferta + sobrecupo y el aforo del aula.</p>
+        <p class="hint preview" id="preview"></p>
       </section>
 
       <section class="panel" aria-labelledby="h-fire">
@@ -151,9 +168,11 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
           <button class="btn primary" id="btn-one">Matricular</button>
         </div>
         <div class="row">
-          <label>Concurrentes<input id="burst-n" type="number" min="1" max="200" value="3"></label>
-          <button class="btn warn" id="btn-burst" style="align-self:end">Disparar a la vez</button>
+          <label>Solicitudes<input id="burst-n" type="number" min="1" max="5000" value="3"></label>
+          <button class="btn warn" id="btn-burst" style="align-self:end">Disparar ráfaga</button>
         </div>
+        <div class="bar" id="prog" hidden><i></i></div>
+        <p class="hint">Hasta 5.000 por ráfaga, con 64 en vuelo a la vez. El navegador limita las conexiones simultáneas por servidor; para 100 simultáneas exactas usa <code>./demo.sh estres</code>.</p>
         <div>
           <p class="hint" style="margin-bottom:6px">Casos de la cadena de reglas:</p>
           <div class="chips" id="presets"></div>
@@ -169,6 +188,7 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
       </section>
       <section class="panel" aria-labelledby="h-res">
         <h2 id="h-res">Respuestas de quota-service</h2>
+        <div class="summary" id="summary"></div>
         <div class="tally" id="tally"></div>
         <div class="log" id="log" aria-live="polite"><p class="empty">Aún no hay matrículas.</p></div>
       </section>
@@ -180,7 +200,7 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
         <h2 id="h-ev">Evento SeatReserved</h2>
         <p class="flow"><em>quota-service</em> publica <strong>SeatReserved</strong> en el exchange <strong>enrollment.events</strong>. Cada cola es de un consumidor distinto.</p>
         <div id="queues"><p class="empty">Esperando RabbitMQ…</p></div>
-        <p class="hint">Las cifras vienen de la API de administración de RabbitMQ, que las actualiza cada ~5 s. Los logs detallados siguen en la terminal.</p>
+        <p class="hint"><b>Publicados</b> y <b>procesados</b> son acumulados desde que existe la cola. <b>Pendientes</b> = esperando + en proceso. La barra muestra procesados sobre publicados. RabbitMQ refresca estas cifras cada ~5 s; los logs detallados siguen en la terminal.</p>
       </section>
     </div>
   </main>
@@ -192,6 +212,14 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
   var expiries = {};            // studentId -> epoch ms de expiración de la reserva
   var results = [];             // últimas respuestas
   var counts = { ok: 0, no: 0 };
+  var shown = 50;               // filas visibles en la lista (el resumen cuenta todas)
+  var stats = { reasons: {}, lat: [], t0: 0, t1: 0 };
+  function resetRun() { results = []; counts = { ok: 0, no: 0 }; shown = 50; stats = { reasons: {}, lat: [], t0: 0, t1: 0 }; }
+  function track(r) {
+    stats.lat.push(r.ms);
+    var key = r.status === 201 ? 'RESERVED' : (r.body.failedRule || r.body.reason || r.body.error || ('HTTP ' + r.status));
+    stats.reasons[key] = (stats.reasons[key] || 0) + 1;
+  }
 
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function api(path, opts) {
@@ -219,7 +247,7 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
       })
       .then(function (r) {
         if (r.status >= 400) throw new Error(r.body.error || 'No se pudo abrir el grupo');
-        expiries = {}; results = []; counts = { ok: 0, no: 0 }; renderLog();
+        expiries = {}; resetRun(); renderLog();
         return refreshRoom();
       })
       .catch(function (e) { $('room-view').replaceChildren(el('p', 'full', e.message)); })
@@ -261,30 +289,72 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
     var t = $('tally'); t.replaceChildren();
     var a = el('span'); a.append('Reservadas ', Object.assign(el('b', null, String(counts.ok)), { style: 'color:var(--ok)' }));
     var b = el('span'); b.append('Rechazadas ', Object.assign(el('b', null, String(counts.no)), { style: 'color:var(--bad)' }));
-    t.append(a, b);
+    t.append(a, b); renderSummary();
     var log = $('log'); log.replaceChildren();
     if (!results.length) { log.appendChild(el('p', 'empty', 'Aún no hay matrículas.')); return; }
-    results.slice(0, 40).forEach(function (r) {
+    results.slice(0, shown).forEach(function (r) {
       var ok = r.status === 201; var row = el('div', 'res ' + (ok ? 'ok' : 'no'));
       var detail = ok ? 'RESERVED · quedan ' + r.body.remainingSeats : (r.body.failedRule || r.body.reason || r.body.error || 'error') + (r.body.detail ? ' · ' + r.body.detail : '');
       var m = el('div', 'msg'); m.append(el('strong', null, r.student), el('br'), detail);
       row.append(el('span', 'code', String(r.status)), m, el('code', null, r.ms + ' ms'));
       log.appendChild(row);
     });
+    if (results.length > shown) {
+      var more = el('button', 'btn more', 'Ver 50 más (' + (results.length - shown) + ' restantes)'); more.type = 'button';
+      more.onclick = function () { shown += 50; renderLog(); }; log.appendChild(more);
+    }
+  }
+  function pct(sorted, p) { return sorted.length ? sorted[Math.min(sorted.length - 1, Math.ceil(p / 100 * sorted.length) - 1)] : 0; }
+  function renderSummary() {
+    var box = $('summary'); box.replaceChildren();
+    if (!stats.lat.length) return;
+    var reasons = el('div', 'reasons');
+    Object.keys(stats.reasons).sort(function (a, b) { return stats.reasons[b] - stats.reasons[a]; }).forEach(function (k) {
+      var c = el('span', 'reason' + (k === 'RESERVED' ? ' ok' : ''), k); c.appendChild(el('b', null, String(stats.reasons[k]))); reasons.appendChild(c);
+    });
+    box.appendChild(reasons);
+    var s = stats.lat.slice().sort(function (a, b) { return a - b; });
+    var elapsed = ((stats.t1 || performance.now()) - stats.t0) / 1000;
+    var lat = el('div', 'lat');
+    var cells = [['total', s.length], ['p50', pct(s, 50) + ' ms'], ['p95', pct(s, 95) + ' ms'], ['p99', pct(s, 99) + ' ms'], ['máximo', s[s.length - 1] + ' ms']];
+    if (stats.t0) cells.push(['req/s', (s.length / Math.max(elapsed, 0.001)).toFixed(0)]);
+    cells.forEach(function (c) { var d = el('div'); d.append(el('b', null, String(c[1])), el('span', null, c[0])); lat.appendChild(d); });
+    box.appendChild(lat);
+    if (stats.t1 && lastSection) {
+      var okN = stats.reasons.RESERVED || 0; var good = okN <= lastSection.totalSeats && lastSection.availableSeats >= 0;
+      box.appendChild(el('div', 'verdict' + (good ? '' : ' bad'), good
+        ? '0 sobreventas: ' + okN + ' reservadas con un cupo efectivo de ' + lastSection.totalSeats + ' (libres: ' + lastSection.availableSeats + ')'
+        : 'Sobreventa detectada: ' + okN + ' reservadas con cupo efectivo ' + lastSection.totalSeats));
+    }
   }
   function enroll(student) {
     return post('/enroll', { studentId: student, sectionId: $('section-id').value }).then(function (r) {
       r.student = student;
       if (r.status === 201) { counts.ok++; expiries[student] = new Date(r.body.expiresAt).getTime(); } else counts.no++;
-      results.unshift(r); return r;
-    }).catch(function () { counts.no++; results.unshift({ student: student, status: 0, body: { error: 'sin conexión con el gateway' }, ms: 0 }); });
+      track(r); results.unshift(r); return r;
+    }).catch(function () {
+      var r = { student: student, status: 0, body: { error: 'sin conexión con el gateway' }, ms: 0 };
+      counts.no++; track(r); results.unshift(r);
+    });
   }
   function done() { renderLog(); refreshRoom(); }
   $('btn-one').onclick = function () { enroll($('student').value.trim()).then(done); };
   $('btn-burst').onclick = function () {
-    var n = Math.min(200, Math.max(1, parseInt($('burst-n').value, 10) || 1)); var btn = $('btn-burst'); btn.disabled = true;
-    var jobs = []; for (var i = 1; i <= n; i++) jobs.push(enroll('est-' + String(i).padStart(3, '0')));
-    Promise.all(jobs).then(function () { done(); btn.disabled = false; });
+    var n = Math.min(5000, Math.max(1, parseInt($('burst-n').value, 10) || 1)); var btn = $('btn-burst'); btn.disabled = true;
+    resetRun(); stats.t0 = performance.now();
+    var run = Date.now().toString(36).slice(-3), width = Math.max(3, String(n).length), next = 1, finished = 0, bar = $('prog');
+    bar.hidden = false; bar.firstChild.style.width = '0%';
+    function pump() {
+      if (next > n) return Promise.resolve();
+      var id = 'est-' + run + '-' + String(next++).padStart(width, '0');
+      return enroll(id).then(function () {
+        finished++; bar.firstChild.style.width = (finished / n * 100) + '%';
+        if (finished % 25 === 0) renderLog();
+        return pump();
+      });
+    }
+    var workers = []; for (var w = 0; w < Math.min(64, n); w++) workers.push(pump());
+    Promise.all(workers).then(function () { stats.t1 = performance.now(); bar.hidden = true; btn.disabled = false; done(); });
   };
   [['est-sin-prerreq', 'sin prerrequisito'], ['est-prueba-acad', 'prueba académica'], ['est-choque', 'choque de horario']].forEach(function (p) {
     var c = el('button', 'chip', p[0]); c.title = p[1]; c.type = 'button';
@@ -292,6 +362,17 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
     $('presets').appendChild(c);
   });
   $('section-id').onchange = refreshRoom;
+
+  /* Vista previa del cupo efectivo: min(oferta + sobrecupo, aforo) */
+  function preview() {
+    var cap = parseInt($('room-cap').value, 10) || 0, off = parseInt($('offered').value, 10) || 0, ov = parseInt($('over').value, 10) || 0;
+    var sum = off + ov, eff = Math.min(sum, cap), p = $('preview');
+    p.textContent = 'Cupo efectivo = menor entre (' + off + ' + ' + ov + ' = ' + sum + ') y el aforo ' + cap + ' → ' + eff +
+      (sum > cap ? '. El aforo físico recorta ' + (sum - cap) + ' cupos.' : '.');
+    p.style.color = sum > cap ? 'var(--infra)' : 'var(--muted)';
+  }
+  ['room-cap', 'offered', 'over'].forEach(function (id) { $(id).oninput = preview; });
+  preview();
 
   /* ---------- Colas de RabbitMQ ---------- */
   var QUEUES = [['billing.seat-reserved', 'Consumidor 1 · billing-worker (ERP)'], ['audit.seat-reserved', 'Consumidor 2 · audit-notification-worker']];
@@ -305,10 +386,11 @@ input, select { background: var(--bg); border: 1px solid var(--line); border-rad
         var st = d.message_stats || {}; var card = el('div', 'queue');
         card.append(el('h3', null, q[0]), el('div', 'who', q[1]));
         var m = el('div', 'metrics');
-        [['consumidores', d.consumers || 0], ['en cola', d.messages_ready || 0], ['publicados', st.publish || 0], ['procesados', st.ack || 0]].forEach(function (x) {
+        [['consumidores', d.consumers || 0], ['pendientes', d.messages || 0], ['publicados', st.publish || 0], ['procesados', st.ack || 0]].forEach(function (x) {
           var c = el('div'); c.append(el('b', null, String(x[1])), el('span', null, x[0])); m.appendChild(c);
         });
-        card.appendChild(m); box.appendChild(card);
+        var bar = el('div', 'bar infra'); var fill = el('i'); fill.style.width = (st.publish ? Math.min(100, (st.ack || 0) / st.publish * 100) : 0) + '%'; bar.appendChild(fill);
+        card.append(m, bar); box.appendChild(card);
       });
     }).catch(function () { pill('pill-mq', false); });
   }
