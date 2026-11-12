@@ -1,0 +1,10 @@
+{
+  "name": "billing-worker",
+  "version": "1.0.0",
+  "description": "Contexto C3 - Integración Financiera y Liquidación (consumidor AMQP + ACL del ERP)",
+  "main": "src/index.js",
+  "license": "MIT",
+  "dependencies": {
+    "amqplib": "0.10.5"
+  }
+}

@@ -1,0 +1,81 @@
+# Walking Skeleton — Motor de Matrículas Universitarias
+# Coherencia 1:1 con el C4 Nivel 2 (docs/ENTREGABLE-1-Diseno-Arquitectonico.md §6.2 y §6.3)
+name: matriculas
+
+services:
+  redis:
+    image: redis:7.4-alpine
+    # AOF everysec (ADR-002) + notificaciones de expiración para liberar reservas (TTL)
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--notify-keyspace-events", "Ex"]
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    ports: ["5672:5672", "15672:15672"]   # 15672 = consola web (guest/guest)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  validation-service:
+    build: ./services/validation-service
+    environment:
+      PORT: 3001
+    ports: ["3001:3001"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  quota-service:
+    build: ./services/quota-service
+    environment:
+      PORT: 3000
+      REDIS_URL: redis://redis:6379
+      AMQP_URL: amqp://guest:guest@rabbitmq:5672
+      VALIDATION_URL: http://validation-service:3001
+      RESERVATION_TTL_SECONDS: ${RESERVATION_TTL_SECONDS:-600}
+    ports: ["3000:3000"]
+    depends_on:
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      validation-service: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  billing-worker:
+    build: ./workers/billing-worker
+    environment:
+      AMQP_URL: amqp://guest:guest@rabbitmq:5672
+      ERP_MIN_LATENCY_MS: 1500
+      ERP_MAX_LATENCY_MS: 3000
+      ERP_FAILURE_RATE: ${ERP_FAILURE_RATE:-0}   # Experimento E-2: ERP_FAILURE_RATE=1.0 simula ERP caído
+      PREFETCH: 2              # Ritmo que tolera el ERP (Queue-Based Load Leveling)
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+
+  audit-notification-worker:
+    build: ./workers/audit-notification-worker
+    environment:
+      AMQP_URL: amqp://guest:guest@rabbitmq:5672
+      OCCUPANCY_ALERT_THRESHOLD: 0.8
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+
+  api-gateway:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports: ["8080:8080"]
+    depends_on:
+      quota-service: { condition: service_healthy }

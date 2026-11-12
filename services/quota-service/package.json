@@ -1,0 +1,12 @@
+{
+  "name": "quota-service",
+  "version": "1.0.0",
+  "description": "Contexto C2 - Control de Cupos y Aforo Físico (Redis Lua atómico + publicación AMQP)",
+  "main": "src/index.js",
+  "license": "MIT",
+  "dependencies": {
+    "amqplib": "0.10.5",
+    "express": "4.21.2",
+    "ioredis": "5.4.2"
+  }
+}
